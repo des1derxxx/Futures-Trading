@@ -80,6 +80,8 @@ export default function PositionsList({ openTrades, closedTrades, currentPrice, 
                     <th className="text-right px-4 py-2">Плечо</th>
                     <th className="text-right px-4 py-2">Вход</th>
                     <th className="text-right px-4 py-2">Ликвидация</th>
+                    <th className="text-right px-4 py-2">Stop Loss</th>
+                    <th className="text-right px-4 py-2">Take Profit</th>
                     <th className="text-right px-4 py-2">PnL</th>
                     <th className="px-4 py-2"></th>
                   </tr>
@@ -102,6 +104,20 @@ export default function PositionsList({ openTrades, closedTrades, currentPrice, 
                         <td className="px-4 py-3 text-right text-zinc-300">{trade.leverage}x</td>
                         <td className="px-4 py-3 text-right font-mono text-zinc-300">${fmtPrice(trade.entry_price)}</td>
                         <td className="px-4 py-3 text-right font-mono text-red-400">${fmtPrice(trade.liquidation_price)}</td>
+                        <td className="px-4 py-3 text-right font-mono">
+                          {trade.stop_loss ? (
+                            <span className="text-orange-400">${fmtPrice(trade.stop_loss)}</span>
+                          ) : (
+                            <span className="text-zinc-600">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono">
+                          {trade.take_profit ? (
+                            <span className="text-green-400">${fmtPrice(trade.take_profit)}</span>
+                          ) : (
+                            <span className="text-zinc-600">—</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-right">
                           {pnl !== null ? (
                             <span className={pnl >= 0 ? "text-green-400 font-mono" : "text-red-400 font-mono"}>

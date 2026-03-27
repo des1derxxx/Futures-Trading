@@ -46,6 +46,7 @@
     --color-red-600: #e40014;
     --color-red-900: #82181a;
     --color-orange-300: #ffb96d;
+    --color-orange-400: #ff8b1a;
     --color-orange-900: #7e2a0c;
     --color-yellow-400: #fac800;
     --color-lime-600: #62a400;
@@ -107,6 +108,7 @@
       --color-red-600: lab(48.4493% 77.4328 61.5452);
       --color-red-900: lab(28.5139% 44.5539 29.0463);
       --color-orange-300: lab(80.8059% 21.7313 50.4455);
+      --color-orange-400: lab(70.0429% 42.5156 75.8207);
       --color-orange-900: lab(30.2951% 36.0434 37.671);
       --color-yellow-400: lab(83.2664% 8.65132 106.895);
       --color-lime-600: lab(61.1055% -41.0235 73.1483);
@@ -421,10 +423,6 @@
 
   .mt-5 {
     margin-top: calc(var(--spacing) * 5);
-  }
-
-  .mt-10 {
-    margin-top: calc(var(--spacing) * 10);
   }
 
   .mb-6 {
@@ -1011,6 +1009,10 @@
     color: var(--color-orange-300);
   }
 
+  .text-orange-400 {
+    color: var(--color-orange-400);
+  }
+
   .text-red-300 {
     color: var(--color-red-300);
   }
@@ -1041,6 +1043,10 @@
 
   .text-zinc-500 {
     color: var(--color-zinc-500);
+  }
+
+  .text-zinc-600 {
+    color: var(--color-zinc-600);
   }
 
   .uppercase {
