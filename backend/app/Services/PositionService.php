@@ -4,12 +4,13 @@ namespace App\Services;
 
 use App\Events\TradeUpdated;
 use App\Models\Trade;
+use App\Models\TournamentParticipant;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
 class PositionService
 {
-    public function open(User $user, array $data): Trade
+    public function open(User $user, array $data, ?TournamentParticipant $participant = null): Trade
     {
         $margin       = (float) $data['margin'];
         $leverage     = (int)   $data['leverage'];
@@ -18,18 +19,33 @@ class PositionService
         $entryPrice   = (float) $data['entry_price'];
         $positionSize = $margin * $leverage;
 
-        if ($user->balance < $margin) {
-            throw new \RuntimeException('Недостаточно средств на балансе.');
+        if ($participant) {
+            if ((float) $participant->tournament_balance < $margin) {
+                throw new \RuntimeException('Недостаточно средств в турнире.');
+            }
+        } else {
+            if ((float) $user->balance < $margin) {
+                throw new \RuntimeException('Недостаточно средств на балансе.');
+            }
         }
 
         $liquidationPrice = $this->calcLiquidationPrice($direction, $entryPrice, $leverage);
 
-        $trade = DB::transaction(function () use ($user, $margin, $leverage, $direction, $symbol, $entryPrice, $positionSize, $liquidationPrice, $data) {
-            $user->decrement('balance', $margin);
-            $user->increment('reserved_balance', $margin);
+        $trade = DB::transaction(function () use (
+            $user, $participant, $margin, $leverage, $direction,
+            $symbol, $entryPrice, $positionSize, $liquidationPrice, $data
+        ) {
+            if ($participant) {
+                $participant->decrement('tournament_balance', $margin);
+                $participant->increment('tournament_reserved_balance', $margin);
+            } else {
+                $user->decrement('balance', $margin);
+                $user->increment('reserved_balance', $margin);
+            }
 
             return Trade::create([
                 'user_id'           => $user->id,
+                'tournament_id'     => $participant?->tournament_id,
                 'symbol'            => $symbol,
                 'direction'         => $direction,
                 'margin'            => $margin,
@@ -45,14 +61,14 @@ class PositionService
         });
 
         $trade->load('user');
-        TradeUpdated::dispatch($trade);
+        $this->broadcast($trade);
 
         return $trade;
     }
 
     public function close(Trade $trade, float $closePrice, string $reason): Trade
     {
-        return DB::transaction(function () use ($trade, $closePrice, $reason) {
+        $trade = DB::transaction(function () use ($trade, $closePrice, $reason) {
             $trade->refresh();
 
             if ($trade->status !== 'open') {
@@ -63,10 +79,24 @@ class PositionService
             $margin = (float) $trade->margin;
             $payout = $reason === 'liquidation' ? 0 : max(0, $margin + $pnl);
 
-            $user = User::lockForUpdate()->find($trade->user_id);
-            $user->decrement('reserved_balance', $margin);
-            if ($payout > 0) {
-                $user->increment('balance', $payout);
+            if ($trade->tournament_id) {
+                $participant = TournamentParticipant::where('tournament_id', $trade->tournament_id)
+                    ->where('user_id', $trade->user_id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($participant) {
+                    $participant->decrement('tournament_reserved_balance', $margin);
+                    if ($payout > 0) {
+                        $participant->increment('tournament_balance', $payout);
+                    }
+                }
+            } else {
+                $user = User::lockForUpdate()->find($trade->user_id);
+                $user->decrement('reserved_balance', $margin);
+                if ($payout > 0) {
+                    $user->increment('balance', $payout);
+                }
             }
 
             $trade->update([
@@ -77,11 +107,13 @@ class PositionService
                 'closed_at'    => now(),
             ]);
 
-            $trade->load('user');
-            TradeUpdated::dispatch($trade);
-
             return $trade;
         });
+
+        $trade->load('user');
+        $this->broadcast($trade);
+
+        return $trade;
     }
 
     public function checkPositions(string $symbol, float $currentPrice): void
@@ -113,6 +145,15 @@ class PositionService
                     $this->close($trade, $currentPrice, 'stop_loss');
                 }
             }
+        }
+    }
+
+    private function broadcast(Trade $trade): void
+    {
+        try {
+            TradeUpdated::dispatch($trade);
+        } catch (\Throwable) {
+            // Broadcasting failure must not affect the trade result
         }
     }
 

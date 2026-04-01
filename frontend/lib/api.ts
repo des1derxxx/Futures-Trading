@@ -10,6 +10,7 @@ export interface AuthResponse {
     email: string
     balance: string
     reserved_balance: string
+    is_admin?: boolean
   }
 }
 
@@ -20,6 +21,7 @@ export interface ApiError {
 
 export interface Trade {
   id: number
+  tournament_id: number | null
   symbol: string
   direction: 'long' | 'short'
   margin: number
@@ -79,6 +81,7 @@ export interface OpenTradeBody {
   take_profit?: number | null
   stop_loss?: number | null
   symbol?: string
+  tournament_id?: number | null
 }
 
 function getToken(): string | null {
@@ -121,6 +124,69 @@ async function authRequest<T>(path: string, options?: RequestInit): Promise<T> {
   return data as T
 }
 
+export interface Tournament {
+  id: number
+  name: string
+  description: string | null
+  start_date: string
+  end_date: string
+  status: 'upcoming' | 'active' | 'finished'
+  max_participants: number | null
+  prize_pool: number | null
+  participants_count: number
+  joined: boolean
+}
+
+export interface TournamentsResponse {
+  tournaments: Tournament[]
+  has_active_tournament: boolean
+}
+
+export interface LeaderboardEntry {
+  user_id: number
+  user_name: string
+  total_pnl: number
+  trade_count: number
+  win_rate: number
+  joined_at: string
+}
+
+export interface TournamentDetailResponse {
+  tournament: Omit<Tournament, 'joined'> & { starting_balance: number }
+  leaderboard: LeaderboardEntry[]
+  joined: boolean
+  joined_at: string | null
+  tournament_balance: number | null
+  tournament_reserved_balance: number | null
+}
+
+export interface TournamentTradesResponse {
+  trades: Trade[]
+  stats: {
+    total_pnl: number
+    trade_count: number
+    closed_count: number
+    open_count: number
+    win_rate: number
+  }
+}
+
+export interface AdminParticipant {
+  participant_id: number
+  user_id: number
+  user_name: string
+  user_email: string
+  joined_at: string
+  total_pnl: number
+  trade_count: number
+  win_rate: number
+}
+
+export interface AdminTournament extends Omit<Tournament, 'joined'> {
+  created_at: string
+  updated_at: string
+}
+
 export const api = {
   register: (body: { name: string; email: string; password: string; password_confirmation: string }) =>
     request<AuthResponse>('/auth/register', { method: 'POST', body: JSON.stringify(body) }),
@@ -128,12 +194,13 @@ export const api = {
   login: (body: { email: string; password: string }) =>
     request<AuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
 
-  me: () => authRequest<AuthResponse['user']>('/auth/me'),
+  me: () => authRequest<AuthResponse['user'] & { is_admin?: boolean }>('/auth/me'),
 
   profile: () => authRequest<ProfileStats>('/profile/stats'),
 
   trades: {
-    list: () => authRequest<TradesResponse>('/trades'),
+    list: (tournamentId?: number) =>
+      authRequest<TradesResponse>(tournamentId ? `/trades?tournament_id=${tournamentId}` : '/trades'),
     open: (body: OpenTradeBody) =>
       authRequest<{ trade: Trade; balance: number; reserved_balance: number }>('/trades', {
         method: 'POST',
@@ -143,5 +210,46 @@ export const api = {
       authRequest<{ trade: Trade; balance: number; reserved_balance: number }>(`/trades/${id}`, {
         method: 'DELETE',
       }),
+  },
+
+  tournaments: {
+    list: () => authRequest<TournamentsResponse>('/tournaments'),
+    get: (id: number) => authRequest<TournamentDetailResponse>(`/tournaments/${id}`),
+    join: (id: number) => authRequest<{ message: string }>(`/tournaments/${id}/join`, { method: 'POST' }),
+    myTrades: (id: number) => authRequest<TournamentTradesResponse>(`/tournaments/${id}/my-trades`),
+    userTrades: (id: number, userId: number) =>
+      authRequest<TournamentTradesResponse>(`/tournaments/${id}/participants/${userId}/trades`),
+  },
+
+  admin: {
+    tournaments: () => authRequest<{ tournaments: AdminTournament[] }>('/admin/tournaments'),
+    createTournament: (body: {
+      name: string
+      description?: string
+      start_date: string
+      end_date: string
+      status: string
+      max_participants?: number | null
+      prize_pool?: number | null
+    }) => authRequest<{ tournament: AdminTournament }>('/admin/tournaments', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+    updateTournament: (id: number, body: Partial<{
+      name: string
+      description: string
+      start_date: string
+      end_date: string
+      status: string
+      max_participants: number | null
+      prize_pool: number | null
+    }>) => authRequest<{ tournament: AdminTournament }>(`/admin/tournaments/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+    deleteTournament: (id: number) =>
+      authRequest<{ message: string }>(`/admin/tournaments/${id}`, { method: 'DELETE' }),
+    participants: (id: number) =>
+      authRequest<{ tournament: AdminTournament; participants: AdminParticipant[] }>(`/admin/tournaments/${id}/participants`),
   },
 }

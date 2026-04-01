@@ -7,9 +7,10 @@ interface TradingPanelProps {
   currentPrice: number | null;
   balance: number;
   onTradeOpened: (balance: number, reservedBalance: number) => void;
+  tournamentId?: number;
 }
 
-export default function TradingPanel({ currentPrice, balance, onTradeOpened }: TradingPanelProps) {
+export default function TradingPanel({ currentPrice, balance, onTradeOpened, tournamentId }: TradingPanelProps) {
   const [margin, setMargin] = useState("");
   const [leverage, setLeverage] = useState(10);
   const [takeProfit, setTakeProfit] = useState("");
@@ -44,6 +45,7 @@ export default function TradingPanel({ currentPrice, balance, onTradeOpened }: T
         leverage,
         take_profit: takeProfit ? parseFloat(takeProfit) : null,
         stop_loss: stopLoss ? parseFloat(stopLoss) : null,
+        tournament_id: tournamentId ?? null,
       };
       const res = await api.trades.open(body);
       onTradeOpened(res.balance, res.reserved_balance);

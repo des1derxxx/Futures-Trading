@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Tournament;
+use App\Models\TournamentParticipant;
 use App\Services\BinancePriceService;
 use App\Services\PositionService;
 use Illuminate\Http\JsonResponse;
@@ -17,28 +19,42 @@ class TradeController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $user = auth('api')->user();
+        $user         = auth('api')->user();
+        $tournamentId = $request->query('tournament_id');
 
-        $trades = $user->trades()
-            ->orderByDesc('opened_at')
-            ->get();
+        $query = $user->trades()->orderByDesc('opened_at');
+
+        if ($tournamentId) {
+            $query->where('tournament_id', $tournamentId);
+
+            $participant = TournamentParticipant::where('tournament_id', $tournamentId)
+                ->where('user_id', $user->id)
+                ->first();
+
+            return response()->json([
+                'trades'           => $query->get(),
+                'balance'          => $participant ? (float) $participant->tournament_balance : 0,
+                'reserved_balance' => $participant ? (float) $participant->tournament_reserved_balance : 0,
+            ]);
+        }
 
         return response()->json([
-            'trades'            => $trades,
-            'balance'           => (float) $user->balance,
-            'reserved_balance'  => (float) $user->reserved_balance,
+            'trades'           => $query->whereNull('tournament_id')->get(),
+            'balance'          => (float) $user->balance,
+            'reserved_balance' => (float) $user->reserved_balance,
         ]);
     }
 
     public function open(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'symbol'      => 'sometimes|string|max:20',
-            'direction'   => 'required|in:long,short',
-            'margin'      => 'required|numeric|min:1',
-            'leverage'    => 'required|integer|min:1|max:125',
-            'take_profit' => 'nullable|numeric|min:0',
-            'stop_loss'   => 'nullable|numeric|min:0',
+            'symbol'        => 'sometimes|string|max:20',
+            'direction'     => 'required|in:long,short',
+            'margin'        => 'required|numeric|min:1',
+            'leverage'      => 'required|integer|min:1|max:125',
+            'take_profit'   => 'nullable|numeric|min:0',
+            'stop_loss'     => 'nullable|numeric|min:0',
+            'tournament_id' => 'nullable|integer|exists:tournaments,id',
         ]);
 
         $user  = auth('api')->user();
@@ -51,14 +67,39 @@ class TradeController extends Controller
         $data['entry_price'] = $price;
         $data['symbol']      = strtoupper($data['symbol'] ?? 'BTCUSDT');
 
+        $participant = null;
+        if (!empty($data['tournament_id'])) {
+            $tournament = Tournament::find($data['tournament_id']);
+
+            if ($tournament->status !== 'active') {
+                return response()->json(['message' => 'Турнир не активен.'], 422);
+            }
+
+            $participant = TournamentParticipant::where('tournament_id', $data['tournament_id'])
+                ->where('user_id', $user->id)
+                ->first();
+
+            if (!$participant) {
+                return response()->json(['message' => 'Вы не участвуете в этом турнире.'], 403);
+            }
+        }
+
         try {
-            $trade = $this->positionService->open($user, $data);
+            $trade = $this->positionService->open($user, $data, $participant);
         } catch (\RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        $user->refresh();
+        if ($participant) {
+            $participant->refresh();
+            return response()->json([
+                'trade'            => $trade,
+                'balance'          => (float) $participant->tournament_balance,
+                'reserved_balance' => (float) $participant->tournament_reserved_balance,
+            ], 201);
+        }
 
+        $user->refresh();
         return response()->json([
             'trade'            => $trade,
             'balance'          => (float) $user->balance,
@@ -77,8 +118,19 @@ class TradeController extends Controller
         }
 
         $trade = $this->positionService->close($trade, $price, 'manual');
-        $user->refresh();
 
+        if ($trade->tournament_id) {
+            $participant = TournamentParticipant::where('tournament_id', $trade->tournament_id)
+                ->where('user_id', $user->id)
+                ->first();
+            return response()->json([
+                'trade'            => $trade,
+                'balance'          => $participant ? (float) $participant->tournament_balance : 0,
+                'reserved_balance' => $participant ? (float) $participant->tournament_reserved_balance : 0,
+            ]);
+        }
+
+        $user->refresh();
         return response()->json([
             'trade'            => $trade,
             'balance'          => (float) $user->balance,

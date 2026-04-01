@@ -11,7 +11,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 
-#[Fillable(['name', 'email', 'password', 'balance', 'reserved_balance'])]
+#[Fillable(['name', 'email', 'password', 'balance', 'reserved_balance', 'is_admin'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements JWTSubject
 {
@@ -25,6 +25,7 @@ class User extends Authenticatable implements JWTSubject
             'password'          => 'hashed',
             'balance'           => 'decimal:2',
             'reserved_balance'  => 'decimal:2',
+            'is_admin'          => 'boolean',
         ];
     }
 
@@ -41,6 +42,11 @@ class User extends Authenticatable implements JWTSubject
     public function trades(): HasMany
     {
         return $this->hasMany(Trade::class);
+    }
+
+    public function tournamentParticipations(): HasMany
+    {
+        return $this->hasMany(TournamentParticipant::class);
     }
 
     protected static function booted()

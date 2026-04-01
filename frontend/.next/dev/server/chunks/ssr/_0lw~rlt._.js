@@ -63,6 +63,29 @@ const api = {
         close: (id)=>authRequest(`/trades/${id}`, {
                 method: 'DELETE'
             })
+    },
+    tournaments: {
+        list: ()=>authRequest('/tournaments'),
+        get: (id)=>authRequest(`/tournaments/${id}`),
+        join: (id)=>authRequest(`/tournaments/${id}/join`, {
+                method: 'POST'
+            }),
+        myTrades: (id)=>authRequest(`/tournaments/${id}/my-trades`)
+    },
+    admin: {
+        tournaments: ()=>authRequest('/admin/tournaments'),
+        createTournament: (body)=>authRequest('/admin/tournaments', {
+                method: 'POST',
+                body: JSON.stringify(body)
+            }),
+        updateTournament: (id, body)=>authRequest(`/admin/tournaments/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify(body)
+            }),
+        deleteTournament: (id)=>authRequest(`/admin/tournaments/${id}`, {
+                method: 'DELETE'
+            }),
+        participants: (id)=>authRequest(`/admin/tournaments/${id}/participants`)
     }
 };
 }),

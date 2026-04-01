@@ -3,6 +3,7 @@
 namespace App\Events;
 
 use App\Models\Trade;
+use App\Models\TournamentParticipant;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
@@ -27,9 +28,17 @@ class TradeUpdated implements ShouldBroadcastNow
 
     public function broadcastWith(): array
     {
+        $participant = null;
+        if ($this->trade->tournament_id) {
+            $participant = TournamentParticipant::where('tournament_id', $this->trade->tournament_id)
+                ->where('user_id', $this->trade->user_id)
+                ->first();
+        }
+
         return [
             'trade' => [
                 'id'                => $this->trade->id,
+                'tournament_id'     => $this->trade->tournament_id,
                 'symbol'            => $this->trade->symbol,
                 'direction'         => $this->trade->direction,
                 'margin'            => (float) $this->trade->margin,
@@ -46,8 +55,10 @@ class TradeUpdated implements ShouldBroadcastNow
                 'opened_at'         => $this->trade->opened_at?->toISOString(),
                 'closed_at'         => $this->trade->closed_at?->toISOString(),
             ],
-            'user_balance'          => (float) $this->trade->user->balance,
-            'user_reserved_balance' => (float) $this->trade->user->reserved_balance,
+            'user_balance'                => (float) $this->trade->user->balance,
+            'user_reserved_balance'       => (float) $this->trade->user->reserved_balance,
+            'tournament_balance'          => $participant ? (float) $participant->tournament_balance : null,
+            'tournament_reserved_balance' => $participant ? (float) $participant->tournament_reserved_balance : null,
         ];
     }
 }
