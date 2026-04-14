@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { api, ProfileStats, Trade } from "@/lib/api";
+import { useState } from "react";
+import { Trade } from "@/lib/api";
+import { useGetProfileQuery } from "@/lib/apiSlice";
+import dynamic from "next/dynamic";
+
+const AnalyticsSection = dynamic(
+  () => import("@/components/AnalyticsSection").then((m) => m.AnalyticsSection),
+  { ssr: false }
+);
 
 function fmt(n: number, digits = 2) {
   return n.toLocaleString("en-US", {
@@ -54,37 +59,14 @@ function CloseReasonBadge({ reason }: { reason: Trade["close_reason"] }) {
 }
 
 export default function ProfilePage() {
-  const router = useRouter();
-  const [data, setData] = useState<ProfileStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<
-    "all" | "open" | "closed" | "liquidated"
-  >("all");
-  const [sortField, setSortField] = useState<"opened_at" | "pnl" | "margin">(
-    "opened_at",
-  );
+  const { data, isLoading } = useGetProfileQuery();
+  const [filter, setFilter] = useState<"all" | "open" | "closed" | "liquidated">("all");
+  const [sortField, setSortField] = useState<"opened_at" | "pnl" | "margin">("opened_at");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.replace("/auth");
-      return;
-    }
-
-    api
-      .profile()
-      .then(setData)
-      .catch(() => {
-        localStorage.removeItem("token");
-        router.replace("/auth");
-      })
-      .finally(() => setLoading(false));
-  }, [router]);
-
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#080d14] flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center">
         <div className="text-zinc-500 text-sm">Загрузка...</div>
       </div>
     );
@@ -132,9 +114,8 @@ export default function ProfilePage() {
   const pnlColor = stats.total_pnl >= 0 ? "text-green-400" : "text-red-400";
 
   return (
-    <div className="min-h-screen bg-[#080d14] text-white">
+    <div className="flex-1 text-white">
       <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col gap-6">
-        {/* User info */}
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-full bg-blue-600 flex items-center justify-center text-xl font-bold">
             {user.name.charAt(0).toUpperCase()}
@@ -156,7 +137,6 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Stats grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
           <div className="col-span-2">
             <StatCard
@@ -186,20 +166,12 @@ export default function ProfilePage() {
           />
           <StatCard
             label="Лучшая сделка"
-            value={
-              stats.best_trade_pnl !== null
-                ? `+$${fmt(stats.best_trade_pnl)}`
-                : "—"
-            }
+            value={stats.best_trade_pnl !== null ? `+$${fmt(stats.best_trade_pnl)}` : "—"}
             color="text-green-400"
           />
           <StatCard
             label="Худшая сделка"
-            value={
-              stats.worst_trade_pnl !== null
-                ? `$${fmt(stats.worst_trade_pnl)}`
-                : "—"
-            }
+            value={stats.worst_trade_pnl !== null ? `$${fmt(stats.worst_trade_pnl)}` : "—"}
             color="text-red-400"
           />
           <StatCard
@@ -209,7 +181,6 @@ export default function ProfilePage() {
           />
         </div>
 
-        {/* Second row stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <StatCard
             label="Объём торгов"
@@ -233,7 +204,8 @@ export default function ProfilePage() {
           />
         </div>
 
-        {/* Trade history */}
+        <AnalyticsSection trades={trades} />
+
         <div className="bg-[#0d1420] border border-zinc-800/60 rounded-xl flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
             <h2 className="font-semibold text-sm">История позиций</h2>
@@ -248,14 +220,7 @@ export default function ProfilePage() {
                       : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
                   }`}
                 >
-                  {
-                    {
-                      all: "Все",
-                      open: "Открытые",
-                      closed: "Закрытые",
-                      liquidated: "Ликвидированные",
-                    }[f]
-                  }
+                  {{ all: "Все", open: "Открытые", closed: "Закрытые", liquidated: "Ликвидированные" }[f]}
                 </button>
               ))}
             </div>
@@ -263,9 +228,7 @@ export default function ProfilePage() {
 
           <div className="overflow-auto">
             {filteredTrades.length === 0 ? (
-              <p className="text-zinc-500 text-sm text-center py-10">
-                Нет сделок
-              </p>
+              <p className="text-zinc-500 text-sm text-center py-10">Нет сделок</p>
             ) : (
               <table className="w-full text-xs">
                 <thead>
@@ -301,58 +264,35 @@ export default function ProfilePage() {
                 <tbody>
                   {filteredTrades.map((trade) => {
                     const roe =
-                      trade.pnl !== null
-                        ? (trade.pnl / trade.margin) * 100
-                        : null;
+                      trade.pnl !== null ? (trade.pnl / trade.margin) * 100 : null;
                     return (
                       <tr
                         key={trade.id}
                         className="border-b border-zinc-800/40 hover:bg-zinc-900/30 transition-colors"
                       >
-                        <td className="px-4 py-3 font-mono text-white font-medium">
-                          {trade.symbol}
-                        </td>
+                        <td className="px-4 py-3 font-mono text-white font-medium">{trade.symbol}</td>
                         <td className="px-4 py-3">
-                          <span
-                            className={`px-2 py-0.5 rounded-full font-semibold ${
-                              trade.direction === "long"
-                                ? "bg-green-900/50 text-green-400"
-                                : "bg-red-900/50 text-red-400"
-                            }`}
-                          >
+                          <span className={`px-2 py-0.5 rounded-full font-semibold ${
+                            trade.direction === "long"
+                              ? "bg-green-900/50 text-green-400"
+                              : "bg-red-900/50 text-red-400"
+                          }`}>
                             {trade.direction === "long" ? "Long ↑" : "Short ↓"}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-zinc-300">
-                          ${fmt(trade.margin)}
-                        </td>
-                        <td className="px-4 py-3 text-right text-zinc-300">
-                          {trade.leverage}x
-                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-zinc-300">${fmt(trade.margin)}</td>
+                        <td className="px-4 py-3 text-right text-zinc-300">{trade.leverage}x</td>
+                        <td className="px-4 py-3 text-right font-mono text-zinc-400">${fmt(trade.position_size, 0)}</td>
+                        <td className="px-4 py-3 text-right font-mono text-zinc-300">${fmt(trade.entry_price)}</td>
                         <td className="px-4 py-3 text-right font-mono text-zinc-400">
-                          ${fmt(trade.position_size, 0)}
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono text-zinc-300">
-                          ${fmt(trade.entry_price)}
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono text-zinc-400">
-                          {trade.close_price
-                            ? `$${fmt(trade.close_price)}`
-                            : "—"}
+                          {trade.close_price ? `$${fmt(trade.close_price)}` : "—"}
                         </td>
                         <td className="px-4 py-3 text-right font-mono">
                           {trade.pnl !== null ? (
-                            <span
-                              className={
-                                trade.pnl >= 0
-                                  ? "text-green-400"
-                                  : "text-red-400"
-                              }
-                            >
+                            <span className={trade.pnl >= 0 ? "text-green-400" : "text-red-400"}>
                               {trade.pnl >= 0 ? "+" : ""}${fmt(trade.pnl)}
                               <span className="text-zinc-500 ml-1">
-                                ({roe! >= 0 ? "+" : ""}
-                                {roe!.toFixed(1)}%)
+                                ({roe! >= 0 ? "+" : ""}{roe!.toFixed(1)}%)
                               </span>
                             </span>
                           ) : (
@@ -360,20 +300,14 @@ export default function ProfilePage() {
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-xs ${
-                              trade.status === "open"
-                                ? "bg-blue-900/50 text-blue-400"
-                                : trade.status === "liquidated"
-                                  ? "bg-red-900/50 text-red-400"
-                                  : "bg-zinc-800 text-zinc-400"
-                            }`}
-                          >
-                            {trade.status === "open"
-                              ? "Открыта"
+                          <span className={`px-2 py-0.5 rounded-full text-xs ${
+                            trade.status === "open"
+                              ? "bg-blue-900/50 text-blue-400"
                               : trade.status === "liquidated"
-                                ? "Ликвидирована"
-                                : "Закрыта"}
+                                ? "bg-red-900/50 text-red-400"
+                                : "bg-zinc-800 text-zinc-400"
+                          }`}>
+                            {trade.status === "open" ? "Открыта" : trade.status === "liquidated" ? "Ликвидирована" : "Закрыта"}
                           </span>
                         </td>
                         <td className="px-4 py-3">

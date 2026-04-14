@@ -1,1 +1,15 @@
-{}
+{
+  "[project]/components/AnalyticsSection.tsx [app-client] (ecmascript, next/dynamic entry)": {
+    "id": "[project]/components/AnalyticsSection.tsx [app-client] (ecmascript, next/dynamic entry)",
+    "files": [
+      "static/chunks/0usb_recharts_es6_util_08swy.y._.js",
+      "static/chunks/0usb_recharts_es6_state_0ti-mas._.js",
+      "static/chunks/0usb_recharts_es6_component_00opevn._.js",
+      "static/chunks/0usb_recharts_es6_cartesian_0ykg_ia._.js",
+      "static/chunks/0usb_recharts_es6_0000-wg._.js",
+      "static/chunks/node_modules__pnpm_0s-ei_y._.js",
+      "static/chunks/components_AnalyticsSection_tsx_02-5ksm._.js",
+      "static/chunks/components_AnalyticsSection_tsx_01ie6.9._.js"
+    ]
+  }
+}

@@ -55,7 +55,7 @@ const api = {
     me: ()=>authRequest('/auth/me'),
     profile: ()=>authRequest('/profile/stats'),
     trades: {
-        list: ()=>authRequest('/trades'),
+        list: (tournamentId)=>authRequest(tournamentId ? `/trades?tournament_id=${tournamentId}` : '/trades'),
         open: (body)=>authRequest('/trades', {
                 method: 'POST',
                 body: JSON.stringify(body)
@@ -70,7 +70,17 @@ const api = {
         join: (id)=>authRequest(`/tournaments/${id}/join`, {
                 method: 'POST'
             }),
-        myTrades: (id)=>authRequest(`/tournaments/${id}/my-trades`)
+        myTrades: (id)=>authRequest(`/tournaments/${id}/my-trades`),
+        userTrades: (id, userId)=>authRequest(`/tournaments/${id}/participants/${userId}/trades`)
+    },
+    chat: {
+        messages: ()=>authRequest('/chat/messages'),
+        send: (message)=>authRequest('/chat/messages', {
+                method: 'POST',
+                body: JSON.stringify({
+                    message
+                })
+            })
     },
     admin: {
         tournaments: ()=>authRequest('/admin/tournaments'),
@@ -125,6 +135,7 @@ function AuthForm() {
                 });
                 localStorage.setItem("token", res.token);
                 localStorage.setItem("user", JSON.stringify(res.user));
+                document.cookie = `auth_token=1; path=/; max-age=86400`;
                 router.push("/");
             } else {
                 const password = form.get("password");
@@ -136,6 +147,7 @@ function AuthForm() {
                 });
                 localStorage.setItem("token", res.token);
                 localStorage.setItem("user", JSON.stringify(res.user));
+                document.cookie = `auth_token=1; path=/; max-age=86400`;
                 router.push("/");
             }
         } catch (err) {
@@ -168,13 +180,13 @@ function AuthForm() {
                                 children: "X"
                             }, void 0, false, {
                                 fileName: "[project]/app/auth/AuthForm.tsx",
-                                lineNumber: 66,
+                                lineNumber: 68,
                                 columnNumber: 18
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/app/auth/AuthForm.tsx",
-                        lineNumber: 65,
+                        lineNumber: 67,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$2$2e$1_$40$babel$2b$core$40$7$2e$29$2e$0_react$2d$dom$40$19$2e$2$2e$4_react$40$19$2e$2$2e$4_$5f$react$40$19$2e$2$2e$4$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -182,13 +194,13 @@ function AuthForm() {
                         children: "Professional Crypto Trading"
                     }, void 0, false, {
                         fileName: "[project]/app/auth/AuthForm.tsx",
-                        lineNumber: 68,
+                        lineNumber: 70,
                         columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/app/auth/AuthForm.tsx",
-                lineNumber: 64,
+                lineNumber: 66,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$2$2e$1_$40$babel$2b$core$40$7$2e$29$2e$0_react$2d$dom$40$19$2e$2$2e$4_react$40$19$2e$2$2e$4_$5f$react$40$19$2e$2$2e$4$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -210,12 +222,12 @@ function AuthForm() {
                                 children: t === "login" ? "Sign In" : "Sign Up"
                             }, t, false, {
                                 fileName: "[project]/app/auth/AuthForm.tsx",
-                                lineNumber: 78,
+                                lineNumber: 80,
                                 columnNumber: 13
                             }, this))
                     }, void 0, false, {
                         fileName: "[project]/app/auth/AuthForm.tsx",
-                        lineNumber: 76,
+                        lineNumber: 78,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$2$2e$1_$40$babel$2b$core$40$7$2e$29$2e$0_react$2d$dom$40$19$2e$2$2e$4_react$40$19$2e$2$2e$4_$5f$react$40$19$2e$2$2e$4$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("form", {
@@ -230,7 +242,7 @@ function AuthForm() {
                                 error: fieldErrors.name
                             }, void 0, false, {
                                 fileName: "[project]/app/auth/AuthForm.tsx",
-                                lineNumber: 100,
+                                lineNumber: 102,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$2$2e$1_$40$babel$2b$core$40$7$2e$29$2e$0_react$2d$dom$40$19$2e$2$2e$4_react$40$19$2e$2$2e$4_$5f$react$40$19$2e$2$2e$4$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(Field, {
@@ -241,7 +253,7 @@ function AuthForm() {
                                 error: fieldErrors.email
                             }, void 0, false, {
                                 fileName: "[project]/app/auth/AuthForm.tsx",
-                                lineNumber: 109,
+                                lineNumber: 111,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$2$2e$1_$40$babel$2b$core$40$7$2e$29$2e$0_react$2d$dom$40$19$2e$2$2e$4_react$40$19$2e$2$2e$4_$5f$react$40$19$2e$2$2e$4$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(Field, {
@@ -252,7 +264,7 @@ function AuthForm() {
                                 error: fieldErrors.password
                             }, void 0, false, {
                                 fileName: "[project]/app/auth/AuthForm.tsx",
-                                lineNumber: 117,
+                                lineNumber: 119,
                                 columnNumber: 11
                             }, this),
                             error && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$2$2e$1_$40$babel$2b$core$40$7$2e$29$2e$0_react$2d$dom$40$19$2e$2$2e$4_react$40$19$2e$2$2e$4_$5f$react$40$19$2e$2$2e$4$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -260,7 +272,7 @@ function AuthForm() {
                                 children: error
                             }, void 0, false, {
                                 fileName: "[project]/app/auth/AuthForm.tsx",
-                                lineNumber: 127,
+                                lineNumber: 129,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$2$2e$1_$40$babel$2b$core$40$7$2e$29$2e$0_react$2d$dom$40$19$2e$2$2e$4_react$40$19$2e$2$2e$4_$5f$react$40$19$2e$2$2e$4$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -271,30 +283,30 @@ function AuthForm() {
                                     className: "h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent"
                                 }, void 0, false, {
                                     fileName: "[project]/app/auth/AuthForm.tsx",
-                                    lineNumber: 138,
+                                    lineNumber: 140,
                                     columnNumber: 15
                                 }, this) : tab === "login" ? "Sign In" : "Create Account"
                             }, void 0, false, {
                                 fileName: "[project]/app/auth/AuthForm.tsx",
-                                lineNumber: 132,
+                                lineNumber: 134,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/app/auth/AuthForm.tsx",
-                        lineNumber: 97,
+                        lineNumber: 99,
                         columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/app/auth/AuthForm.tsx",
-                lineNumber: 74,
+                lineNumber: 76,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/app/auth/AuthForm.tsx",
-        lineNumber: 62,
+        lineNumber: 64,
         columnNumber: 5
     }, this);
 }
@@ -307,7 +319,7 @@ function Field({ name, label, type, placeholder, error }) {
                 children: label
             }, void 0, false, {
                 fileName: "[project]/app/auth/AuthForm.tsx",
-                lineNumber: 166,
+                lineNumber: 168,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$2$2e$1_$40$babel$2b$core$40$7$2e$29$2e$0_react$2d$dom$40$19$2e$2$2e$4_react$40$19$2e$2$2e$4_$5f$react$40$19$2e$2$2e$4$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
@@ -318,7 +330,7 @@ function Field({ name, label, type, placeholder, error }) {
                 className: `rounded-lg border bg-zinc-800 px-4 py-2.5 text-sm text-white placeholder-zinc-600 outline-none transition focus:ring-1 ${error ? "border-red-500 focus:ring-red-500" : "border-zinc-700 focus:border-emerald-500 focus:ring-emerald-500"}`
             }, void 0, false, {
                 fileName: "[project]/app/auth/AuthForm.tsx",
-                lineNumber: 167,
+                lineNumber: 169,
                 columnNumber: 7
             }, this),
             error && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$2$2e$1_$40$babel$2b$core$40$7$2e$29$2e$0_react$2d$dom$40$19$2e$2$2e$4_react$40$19$2e$2$2e$4_$5f$react$40$19$2e$2$2e$4$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -326,13 +338,13 @@ function Field({ name, label, type, placeholder, error }) {
                 children: error
             }, void 0, false, {
                 fileName: "[project]/app/auth/AuthForm.tsx",
-                lineNumber: 178,
+                lineNumber: 180,
                 columnNumber: 17
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/app/auth/AuthForm.tsx",
-        lineNumber: 165,
+        lineNumber: 167,
         columnNumber: 5
     }, this);
 }

@@ -2,15 +2,33 @@
 
 import { useState } from "react";
 import { api, ApiError, OpenTradeBody } from "@/lib/api";
+import { FormInput } from "@/components/FormInput";
+
+export const SYMBOLS = [
+  { value: "BTCUSDT", label: "BTC" },
+  { value: "ETHUSDT", label: "ETH" },
+  { value: "BNBUSDT", label: "BNB" },
+  { value: "XRPUSDT", label: "XRP" },
+  { value: "SOLUSDT", label: "SOL" },
+];
 
 interface TradingPanelProps {
   currentPrice: number | null;
   balance: number;
   onTradeOpened: (balance: number, reservedBalance: number) => void;
   tournamentId?: number;
+  symbol: string;
+  onSymbolChange: (symbol: string) => void;
 }
 
-export default function TradingPanel({ currentPrice, balance, onTradeOpened, tournamentId }: TradingPanelProps) {
+export default function TradingPanel({
+  currentPrice,
+  balance,
+  onTradeOpened,
+  tournamentId,
+  symbol,
+  onSymbolChange,
+}: TradingPanelProps) {
   const [margin, setMargin] = useState("");
   const [leverage, setLeverage] = useState(10);
   const [takeProfit, setTakeProfit] = useState("");
@@ -40,6 +58,7 @@ export default function TradingPanel({ currentPrice, balance, onTradeOpened, tou
 
     try {
       const body: OpenTradeBody = {
+        symbol,
         direction,
         margin: parseFloat(margin),
         leverage,
@@ -66,28 +85,41 @@ export default function TradingPanel({ currentPrice, balance, onTradeOpened, tou
     <div className="bg-[#0d1420] border border-zinc-800/60 rounded-xl p-4 flex flex-col gap-4">
       <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Открыть позицию</h3>
 
-      {/* Current price */}
+      {/* Symbol selector */}
+      <div className="flex gap-1">
+        {SYMBOLS.map((s) => (
+          <button
+            key={s.value}
+            onClick={() => onSymbolChange(s.value)}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+              symbol === s.value
+                ? "bg-blue-600 text-white"
+                : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white"
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+
       <div className="flex justify-between text-sm">
         <span className="text-zinc-400">Цена входа</span>
         <span className="font-mono text-white">
-          {currentPrice ? `$${currentPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "—"}
+          {currentPrice
+            ? `$${currentPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+            : "—"}
         </span>
       </div>
 
-      {/* Margin */}
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-zinc-500">Маржа (USDT)</label>
-        <input
-          type="number"
-          min="1"
-          value={margin}
-          onChange={(e) => setMargin(e.target.value)}
-          placeholder="100"
-          className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-        />
-      </div>
+      <FormInput
+        label="Маржа (USDT)"
+        type="number"
+        min="1"
+        value={margin}
+        onChange={(e) => setMargin(e.target.value)}
+        placeholder="100"
+      />
 
-      {/* Leverage */}
       <div className="flex flex-col gap-2">
         <label className="text-xs text-zinc-500">Плечо: {leverage}x</label>
         <input
@@ -103,7 +135,11 @@ export default function TradingPanel({ currentPrice, balance, onTradeOpened, tou
             <button
               key={l}
               onClick={() => setLeverage(l)}
-              className={`text-xs px-2 py-1 rounded ${leverage === l ? "bg-blue-600 text-white" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
+              className={`text-xs px-2 py-1 rounded ${
+                leverage === l
+                  ? "bg-blue-600 text-white"
+                  : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+              }`}
             >
               {l}x
             </button>
@@ -111,51 +147,57 @@ export default function TradingPanel({ currentPrice, balance, onTradeOpened, tou
         </div>
       </div>
 
-      {/* Position size preview */}
       {positionSize > 0 && (
         <div className="text-xs text-zinc-400 bg-zinc-900/50 rounded-lg p-2 flex justify-between">
           <span>Размер позиции</span>
-          <span className="text-white font-mono">${positionSize.toLocaleString("en-US", { maximumFractionDigits: 2 })}</span>
+          <span className="text-white font-mono">
+            ${positionSize.toLocaleString("en-US", { maximumFractionDigits: 2 })}
+          </span>
         </div>
       )}
 
-      {/* TP / SL */}
       <div className="grid grid-cols-2 gap-2">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-zinc-500">Take Profit</label>
-          <input
-            type="number"
-            min="0"
-            value={takeProfit}
-            onChange={(e) => setTakeProfit(e.target.value)}
-            placeholder="Необязательно"
-            className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-green-500"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-zinc-500">Stop Loss</label>
-          <input
-            type="number"
-            min="0"
-            value={stopLoss}
-            onChange={(e) => setStopLoss(e.target.value)}
-            placeholder="Необязательно"
-            className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-red-500"
-          />
-        </div>
+        <FormInput
+          label="Take Profit"
+          type="number"
+          min="0"
+          value={takeProfit}
+          onChange={(e) => setTakeProfit(e.target.value)}
+          placeholder="Необязательно"
+          focusBorderClass="focus:border-green-500"
+          className="text-xs"
+        />
+        <FormInput
+          label="Stop Loss"
+          type="number"
+          min="0"
+          value={stopLoss}
+          onChange={(e) => setStopLoss(e.target.value)}
+          placeholder="Необязательно"
+          focusBorderClass="focus:border-red-500"
+          className="text-xs"
+        />
       </div>
 
-      {/* Liquidation prices */}
       {margin && parseFloat(margin) > 0 && currentPrice && (
         <div className="text-xs text-zinc-500 flex justify-between">
-          <span>Ликвидация Long: <span className="text-red-400 font-mono">${liqPrice("long")?.toLocaleString("en-US", { maximumFractionDigits: 2 })}</span></span>
-          <span>Short: <span className="text-red-400 font-mono">${liqPrice("short")?.toLocaleString("en-US", { maximumFractionDigits: 2 })}</span></span>
+          <span>
+            Ликвидация Long:{" "}
+            <span className="text-red-400 font-mono">
+              ${liqPrice("long")?.toLocaleString("en-US", { maximumFractionDigits: 2 })}
+            </span>
+          </span>
+          <span>
+            Short:{" "}
+            <span className="text-red-400 font-mono">
+              ${liqPrice("short")?.toLocaleString("en-US", { maximumFractionDigits: 2 })}
+            </span>
+          </span>
         </div>
       )}
 
       {error && <p className="text-red-400 text-xs">{error}</p>}
 
-      {/* Buttons */}
       <div className="grid grid-cols-2 gap-2">
         <button
           onClick={() => open("long")}

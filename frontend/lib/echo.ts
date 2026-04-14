@@ -4,10 +4,10 @@ import Pusher from 'pusher-js'
 let echo: Echo<'reverb'> | null = null
 
 export function getEcho(): Echo<'reverb'> {
-  if (!echo) {
-    ;(window as any).Pusher = Pusher
+  const token = localStorage.getItem('token')
 
-    const token = localStorage.getItem('token')
+  if (!echo) {
+    ;(window as Window & typeof globalThis & { Pusher: typeof Pusher }).Pusher = Pusher
 
     echo = new Echo({
       broadcaster: 'reverb',
@@ -24,7 +24,14 @@ export function getEcho(): Echo<'reverb'> {
         },
       },
     })
+  } else {
+    // Обновляем токен авторизации при каждом вызове — на случай если он обновился после создания Echo
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(echo.connector as any).pusher.config.auth = {
+      headers: { Authorization: token ? `Bearer ${token}` : '' },
+    }
   }
+
   return echo
 }
 

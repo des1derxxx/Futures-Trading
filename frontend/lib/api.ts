@@ -187,6 +187,14 @@ export interface AdminTournament extends Omit<Tournament, 'joined'> {
   updated_at: string
 }
 
+export interface ChatMessage {
+  id: number
+  user_id: number
+  user_name: string
+  message: string
+  created_at: string
+}
+
 export const api = {
   register: (body: { name: string; email: string; password: string; password_confirmation: string }) =>
     request<AuthResponse>('/auth/register', { method: 'POST', body: JSON.stringify(body) }),
@@ -219,6 +227,15 @@ export const api = {
     myTrades: (id: number) => authRequest<TournamentTradesResponse>(`/tournaments/${id}/my-trades`),
     userTrades: (id: number, userId: number) =>
       authRequest<TournamentTradesResponse>(`/tournaments/${id}/participants/${userId}/trades`),
+  },
+
+  chat: {
+    messages: () => authRequest<{ messages: ChatMessage[] }>('/chat/messages'),
+    send: (message: string) =>
+      authRequest<ChatMessage>('/chat/messages', {
+        method: 'POST',
+        body: JSON.stringify({ message }),
+      }),
   },
 
   admin: {

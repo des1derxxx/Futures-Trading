@@ -47,8 +47,10 @@ class TradeController extends Controller
 
     public function open(Request $request): JsonResponse
     {
+        $supported = implode(',', \App\Services\BinancePriceService::SUPPORTED_SYMBOLS);
+
         $data = $request->validate([
-            'symbol'        => 'sometimes|string|max:20',
+            'symbol'        => "sometimes|string|in:{$supported}",
             'direction'     => 'required|in:long,short',
             'margin'        => 'required|numeric|min:1',
             'leverage'      => 'required|integer|min:1|max:125',
@@ -57,15 +59,16 @@ class TradeController extends Controller
             'tournament_id' => 'nullable|integer|exists:tournaments,id',
         ]);
 
-        $user  = auth('api')->user();
-        $price = $this->priceService->getPrice();
+        $symbol = strtoupper($data['symbol'] ?? 'BTCUSDT');
+        $user   = auth('api')->user();
+        $price  = $this->priceService->getPrice($symbol);
 
         if ($price === null) {
             return response()->json(['message' => 'Цена недоступна, попробуйте позже.'], 503);
         }
 
         $data['entry_price'] = $price;
-        $data['symbol']      = strtoupper($data['symbol'] ?? 'BTCUSDT');
+        $data['symbol']      = $symbol;
 
         $participant = null;
         if (!empty($data['tournament_id'])) {
@@ -111,7 +114,9 @@ class TradeController extends Controller
     {
         $user  = auth('api')->user();
         $trade = $user->trades()->where('status', 'open')->findOrFail($id);
-        $price = $this->priceService->getPrice();
+        $tradeSymbol = $trade->symbol ?? 'BTCUSDT';
+        // Always fetch a fresh price when closing to avoid stale-cache PnL = 0
+        $price = $this->priceService->fetchAndCachePrice($tradeSymbol) ?? $this->priceService->getCachedPrice($tradeSymbol);
 
         if ($price === null) {
             return response()->json(['message' => 'Цена недоступна.'], 503);

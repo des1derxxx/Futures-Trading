@@ -1,15 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useState } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
-  api,
   LeaderboardEntry,
-  TournamentDetailResponse,
   TournamentTradesResponse,
   Trade,
 } from "@/lib/api";
+import {
+  useGetTournamentQuery,
+  useJoinTournamentMutation,
+  useGetMyTournamentTradesQuery,
+  useGetUserTournamentTradesQuery,
+} from "@/lib/apiSlice";
 
 function fmt(n: number, digits = 2) {
   return n.toLocaleString("en-US", {
@@ -146,75 +150,43 @@ function StatsRow({ stats, label }: { stats: TournamentTradesResponse["stats"]; 
 }
 
 export default function TournamentDetailPage() {
-  const router = useRouter();
   const params = useParams<{ id: string }>();
   const tournamentId = Number(params.id);
 
-  const [data, setData] = useState<TournamentDetailResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [myTrades, setMyTrades] = useState<TournamentTradesResponse | null>(null);
-  const [activeTab, setActiveTab] = useState<"leaderboard" | "my-trades">("leaderboard");
-  const [joiningId, setJoiningId] = useState(false);
+  const { data, isLoading } = useGetTournamentQuery(tournamentId);
+  const [joinTournament, { isLoading: joiningId }] = useJoinTournamentMutation();
   const [joinError, setJoinError] = useState<string | null>(null);
-
-  // Selected user in leaderboard
+  const [activeTab, setActiveTab] = useState<"leaderboard" | "my-trades">("leaderboard");
   const [selectedUser, setSelectedUser] = useState<LeaderboardEntry | null>(null);
-  const [selectedUserTrades, setSelectedUserTrades] = useState<TournamentTradesResponse | null>(null);
-  const [selectedUserLoading, setSelectedUserLoading] = useState(false);
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) { router.replace("/auth"); return; }
-    api.tournaments
-      .get(tournamentId)
-      .then((d) => {
-        setData(d);
-        if (d.joined) return api.tournaments.myTrades(tournamentId).then(setMyTrades);
-      })
-      .catch(() => router.replace("/tournaments"))
-      .finally(() => setLoading(false));
-  }, [router, tournamentId]);
+  const joined = data?.joined ?? false;
+
+  const { data: myTrades } = useGetMyTournamentTradesQuery(tournamentId, {
+    skip: !joined,
+  });
+
+  const { data: selectedUserTrades, isFetching: selectedUserLoading } =
+    useGetUserTournamentTradesQuery(
+      { tournamentId, userId: selectedUser?.user_id ?? 0 },
+      { skip: selectedUser === null }
+    );
 
   const handleJoin = async () => {
     setJoinError(null);
-    setJoiningId(true);
     try {
-      await api.tournaments.join(tournamentId);
-      const [d, t] = await Promise.all([
-        api.tournaments.get(tournamentId),
-        api.tournaments.myTrades(tournamentId),
-      ]);
-      setData(d);
-      setMyTrades(t);
+      await joinTournament(tournamentId).unwrap();
     } catch (e: unknown) {
-      setJoinError((e as { message?: string })?.message ?? "Ошибка при вступлении");
-    } finally {
-      setJoiningId(false);
+      setJoinError((e as { data?: { message?: string } })?.data?.message ?? "Ошибка при вступлении");
     }
   };
 
-  const handleSelectUser = async (entry: LeaderboardEntry) => {
-    if (selectedUser?.user_id === entry.user_id) {
-      setSelectedUser(null);
-      setSelectedUserTrades(null);
-      return;
-    }
-    setSelectedUser(entry);
-    setSelectedUserTrades(null);
-    setSelectedUserLoading(true);
-    try {
-      const trades = await api.tournaments.userTrades(tournamentId, entry.user_id);
-      setSelectedUserTrades(trades);
-    } catch {
-      setSelectedUserTrades({ trades: [], stats: { total_pnl: 0, trade_count: 0, closed_count: 0, open_count: 0, win_rate: 0 } });
-    } finally {
-      setSelectedUserLoading(false);
-    }
+  const handleSelectUser = (entry: LeaderboardEntry) => {
+    setSelectedUser(selectedUser?.user_id === entry.user_id ? null : entry);
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#080d14] flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center">
         <div className="text-zinc-500 text-sm">Загрузка...</div>
       </div>
     );
@@ -222,16 +194,14 @@ export default function TournamentDetailPage() {
 
   if (!data) return null;
 
-  const { tournament, leaderboard, joined } = data;
+  const { tournament, leaderboard } = data;
 
   const startDate = new Date(tournament.start_date).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
   const endDate   = new Date(tournament.end_date).toLocaleDateString("ru-RU",   { day: "2-digit", month: "2-digit", year: "numeric" });
 
   return (
-    <div className="min-h-screen bg-[#080d14] text-white">
+    <div className="flex-1 text-white">
       <div className="max-w-6xl mx-auto px-6 py-8 flex flex-col gap-6">
-
-        {/* Header */}
         <div className="bg-[#0d1420] border border-zinc-800/60 rounded-xl p-6 flex flex-col gap-3">
           <div className="flex items-start justify-between gap-4">
             <div className="flex flex-col gap-2">
@@ -293,7 +263,6 @@ export default function TournamentDetailPage() {
           </div>
         </div>
 
-        {/* Tabs */}
         {joined && (
           <div className="flex gap-2">
             <button
@@ -311,7 +280,6 @@ export default function TournamentDetailPage() {
           </div>
         )}
 
-        {/* Leaderboard tab */}
         {(activeTab === "leaderboard" || !joined) && (
           <div className="flex flex-col gap-4">
             <div className="bg-[#0d1420] border border-zinc-800/60 rounded-xl overflow-hidden">
@@ -383,7 +351,6 @@ export default function TournamentDetailPage() {
               )}
             </div>
 
-            {/* Selected user panel */}
             {selectedUser && (
               <div className="bg-[#0d1420] border border-zinc-800/60 rounded-xl overflow-hidden">
                 <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-3">
@@ -395,12 +362,10 @@ export default function TournamentDetailPage() {
                     <span className="text-xs text-zinc-500 ml-2">— статистика и сделки в турнире</span>
                   </div>
                 </div>
-
                 {selectedUserLoading ? (
                   <p className="text-zinc-500 text-sm text-center py-8">Загрузка...</p>
                 ) : selectedUserTrades ? (
                   <div className="flex flex-col gap-0">
-                    {/* Stats row */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-zinc-800/40">
                       {[
                         {
@@ -422,7 +387,6 @@ export default function TournamentDetailPage() {
                         </div>
                       ))}
                     </div>
-                    {/* Trades */}
                     <TradesTable trades={selectedUserTrades.trades} />
                   </div>
                 ) : null}
@@ -431,7 +395,6 @@ export default function TournamentDetailPage() {
           </div>
         )}
 
-        {/* My trades tab */}
         {activeTab === "my-trades" && joined && (
           <div className="flex flex-col gap-4">
             {myTrades ? (
@@ -449,7 +412,6 @@ export default function TournamentDetailPage() {
             )}
           </div>
         )}
-
       </div>
     </div>
   );

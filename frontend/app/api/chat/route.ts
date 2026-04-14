@@ -61,7 +61,8 @@ async function fetchBinanceKlines(interval: string, limit: number): Promise<Klin
       `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${interval}&limit=${limit}`
     );
     const data = await res.json();
-    return data.map((k: any[]) => ({
+    type BinanceKlineRaw = [number, string, string, string, string, string, ...unknown[]];
+    return (data as BinanceKlineRaw[]).map((k) => ({
       time: new Date(k[0]).toISOString().slice(0, 16).replace("T", " "),
       open: parseFloat(k[1]).toFixed(2),
       high: parseFloat(k[2]).toFixed(2),

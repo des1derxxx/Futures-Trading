@@ -3,26 +3,27 @@ import Link from "next/link";
 import BtcPrice from "./BtcPrice";
 import ChatModal from "./ChatModal";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
-import { api } from "@/lib/api";
+import { useState } from "react";
+import { useGetMeQuery } from "@/lib/apiSlice";
+import { useTournamentNotifications } from "@/hooks/useNotifications";
+import NotificationCenter from "./NotificationCenter";
 
 const Header = () => {
   const router = useRouter();
-  const isAuth = localStorage.getItem("token");
   const [chatOpened, setChatOpened] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { data: me } = useGetMeQuery();
+  useTournamentNotifications(me?.id ?? null);
 
-  useEffect(() => {
-    if (isAuth) {
-      api.me().then((user) => {
-        setIsAdmin(!!user.is_admin);
-      }).catch(() => {});
-    }
-  }, [isAuth]);
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    document.cookie = "auth_token=; path=/; max-age=0";
+    router.replace("/auth");
+  };
 
   return (
     <>
-      <header className="border-b border-zinc-800/60 px-6 py-3 flex items-center justify-between">
+      <header className="border-b border-zinc-800/60 px-6 py-3 flex items-center justify-between bg-[#080d14]">
         <div className="flex items-center gap-4">
           <span
             className="font-bold text-white hover:cursor-pointer"
@@ -32,13 +33,19 @@ const Header = () => {
           </span>
           <BtcPrice />
         </div>
-        {isAuth && (
+        {me && (
           <div className="flex items-center gap-4">
             <Link
               href="/tournaments"
               className="text-xs text-zinc-400 hover:text-white transition-colors"
             >
               Турниры
+            </Link>
+            <Link
+              href="/chat"
+              className="text-xs text-zinc-400 hover:text-white transition-colors"
+            >
+              Чат
             </Link>
             <button
               onClick={() => setChatOpened(true)}
@@ -52,7 +59,7 @@ const Header = () => {
             >
               Профиль
             </Link>
-            {isAdmin && (
+            {me.is_admin && (
               <Link
                 href="/admin"
                 className="text-xs text-yellow-500 hover:text-yellow-300 transition-colors"
@@ -60,11 +67,9 @@ const Header = () => {
                 Админ
               </Link>
             )}
+            <NotificationCenter />
             <button
-              onClick={() => {
-                localStorage.removeItem("token");
-                router.replace("/auth");
-              }}
+              onClick={handleLogout}
               className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
             >
               Выйти

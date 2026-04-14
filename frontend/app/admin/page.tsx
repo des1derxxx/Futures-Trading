@@ -2,7 +2,15 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api, AdminTournament, AdminParticipant } from "@/lib/api";
+import { AdminTournament, AdminParticipant } from "@/lib/api";
+import { FormInput } from "@/components/FormInput";
+import {
+  useGetAdminTournamentsQuery,
+  useCreateTournamentMutation,
+  useUpdateTournamentMutation,
+  useDeleteTournamentMutation,
+  useGetAdminParticipantsQuery,
+} from "@/lib/apiSlice";
 
 function fmt(n: number, digits = 2) {
   return n.toLocaleString("en-US", {
@@ -28,40 +36,45 @@ const emptyForm = {
   starting_balance: "10000",
 };
 
+const statusLabel: Record<string, string> = {
+  upcoming: "Скоро",
+  active: "Активен",
+  finished: "Завершён",
+};
+const statusColor: Record<string, string> = {
+  upcoming: "text-yellow-400",
+  active: "text-green-400",
+  finished: "text-zinc-400",
+};
+
 export default function AdminPage() {
   const router = useRouter();
-  const [tournaments, setTournaments] = useState<AdminTournament[]>([]);
-  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [selectedTournamentId, setSelectedTournamentId] = useState<number | null>(null);
-  const [participants, setParticipants] = useState<AdminParticipant[] | null>(null);
-  const [participantsLoading, setParticipantsLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
-  const loadTournaments = async () => {
-    const data = await api.admin.tournaments();
-    setTournaments(data.tournaments);
-  };
+  const { data, isLoading, isError, error: fetchError } = useGetAdminTournamentsQuery();
+  const [createTournament] = useCreateTournamentMutation();
+  const [updateTournament] = useUpdateTournamentMutation();
+  const [deleteTournament] = useDeleteTournamentMutation();
+
+  const { data: participantsData, isFetching: participantsLoading } =
+    useGetAdminParticipantsQuery(selectedTournamentId!, {
+      skip: selectedTournamentId === null,
+    });
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.replace("/auth");
-      return;
+    if (isError && fetchError && "status" in fetchError && fetchError.status === 403) {
+      router.replace("/");
     }
-    api.admin
-      .tournaments()
-      .then((data) => setTournaments(data.tournaments))
-      .catch((e) => {
-        if (e?.message === "Forbidden") router.replace("/");
-        else router.replace("/auth");
-      })
-      .finally(() => setLoading(false));
-  }, [router]);
+  }, [isError, fetchError, router]);
+
+  const tournaments: AdminTournament[] = data?.tournaments ?? [];
+  const participants: AdminParticipant[] | undefined = participantsData?.participants;
 
   const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -82,21 +95,20 @@ export default function AdminPage() {
 
     try {
       if (editingId !== null) {
-        await api.admin.updateTournament(editingId, body);
+        await updateTournament({ id: editingId, body }).unwrap();
         setSuccess("Турнир обновлён");
       } else {
-        await api.admin.createTournament(body);
+        await createTournament(body).unwrap();
         setSuccess("Турнир создан");
       }
-      await loadTournaments();
       setForm(emptyForm);
       setEditingId(null);
       setShowForm(false);
     } catch (e: unknown) {
-      const err = e as { message?: string; errors?: Record<string, string[]> };
-      const firstError = err?.errors
-        ? Object.values(err.errors).flat()[0]
-        : err?.message;
+      const err = e as { message?: string; data?: { errors?: Record<string, string[]>; message?: string } };
+      const firstError = err?.data?.errors
+        ? Object.values(err.data.errors).flat()[0]
+        : (err?.data?.message ?? err?.message);
       setError(firstError ?? "Ошибка сохранения");
     } finally {
       setSaving(false);
@@ -126,34 +138,16 @@ export default function AdminPage() {
   const handleDelete = async (id: number) => {
     if (!confirm("Удалить турнир?")) return;
     try {
-      await api.admin.deleteTournament(id);
-      await loadTournaments();
+      await deleteTournament(id).unwrap();
       setSuccess("Турнир удалён");
-      if (selectedTournamentId === id) {
-        setSelectedTournamentId(null);
-        setParticipants(null);
-      }
+      if (selectedTournamentId === id) setSelectedTournamentId(null);
     } catch {
       setError("Ошибка удаления");
     }
   };
 
-  const loadParticipants = async (id: number) => {
-    if (selectedTournamentId === id) {
-      setSelectedTournamentId(null);
-      setParticipants(null);
-      return;
-    }
-    setSelectedTournamentId(id);
-    setParticipantsLoading(true);
-    try {
-      const data = await api.admin.participants(id);
-      setParticipants(data.participants);
-    } catch {
-      setParticipants([]);
-    } finally {
-      setParticipantsLoading(false);
-    }
+  const toggleParticipants = (id: number) => {
+    setSelectedTournamentId(selectedTournamentId === id ? null : id);
   };
 
   const cancelForm = () => {
@@ -163,27 +157,16 @@ export default function AdminPage() {
     setError(null);
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#080d14] flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center">
         <div className="text-zinc-500 text-sm">Загрузка...</div>
       </div>
     );
   }
 
-  const statusLabel: Record<string, string> = {
-    upcoming: "Скоро",
-    active: "Активен",
-    finished: "Завершён",
-  };
-  const statusColor: Record<string, string> = {
-    upcoming: "text-yellow-400",
-    active: "text-green-400",
-    finished: "text-zinc-400",
-  };
-
   return (
-    <div className="min-h-screen bg-[#080d14] text-white">
+    <div className="flex-1 text-white">
       <div className="max-w-6xl mx-auto px-6 py-8 flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Админ панель</h1>
@@ -197,7 +180,6 @@ export default function AdminPage() {
           )}
         </div>
 
-        {/* Notifications */}
         {success && (
           <div className="bg-green-900/30 border border-green-800/50 text-green-400 text-sm px-4 py-3 rounded-lg">
             {success}
@@ -209,7 +191,6 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Create / Edit form */}
         {showForm && (
           <div className="bg-[#0d1420] border border-zinc-800/60 rounded-xl p-6">
             <h2 className="font-semibold mb-4">
@@ -217,17 +198,14 @@ export default function AdminPage() {
             </h2>
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-zinc-400">Название *</label>
-                  <input
-                    type="text"
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    required
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                    placeholder="Название турнира"
-                  />
-                </div>
+                <FormInput
+                  label="Название *"
+                  type="text"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  required
+                  placeholder="Название турнира"
+                />
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs text-zinc-400">Статус *</label>
                   <select
@@ -242,61 +220,46 @@ export default function AdminPage() {
                     ))}
                   </select>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-zinc-400">Дата начала *</label>
-                  <input
-                    type="datetime-local"
-                    value={form.start_date}
-                    onChange={(e) => setForm({ ...form, start_date: e.target.value })}
-                    required
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-zinc-400">Дата окончания *</label>
-                  <input
-                    type="datetime-local"
-                    value={form.end_date}
-                    onChange={(e) => setForm({ ...form, end_date: e.target.value })}
-                    required
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-zinc-400">Макс. участников</label>
-                  <input
-                    type="number"
-                    min="2"
-                    value={form.max_participants}
-                    onChange={(e) => setForm({ ...form, max_participants: e.target.value })}
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                    placeholder="Без ограничений"
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-zinc-400">Призовой фонд ($)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.prize_pool}
-                    onChange={(e) => setForm({ ...form, prize_pool: e.target.value })}
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                    placeholder="Нет призового фонда"
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-zinc-400">Стартовый баланс ($) *</label>
-                  <input
-                    type="number"
-                    min="100"
-                    step="100"
-                    value={form.starting_balance}
-                    onChange={(e) => setForm({ ...form, starting_balance: e.target.value })}
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                    placeholder="10000"
-                  />
-                </div>
+                <FormInput
+                  label="Дата начала *"
+                  type="datetime-local"
+                  value={form.start_date}
+                  onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+                  required
+                />
+                <FormInput
+                  label="Дата окончания *"
+                  type="datetime-local"
+                  value={form.end_date}
+                  onChange={(e) => setForm({ ...form, end_date: e.target.value })}
+                  required
+                />
+                <FormInput
+                  label="Макс. участников"
+                  type="number"
+                  min="2"
+                  value={form.max_participants}
+                  onChange={(e) => setForm({ ...form, max_participants: e.target.value })}
+                  placeholder="Без ограничений"
+                />
+                <FormInput
+                  label="Призовой фонд ($)"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.prize_pool}
+                  onChange={(e) => setForm({ ...form, prize_pool: e.target.value })}
+                  placeholder="Нет призового фонда"
+                />
+                <FormInput
+                  label="Стартовый баланс ($) *"
+                  type="number"
+                  min="100"
+                  step="100"
+                  value={form.starting_balance}
+                  onChange={(e) => setForm({ ...form, starting_balance: e.target.value })}
+                  placeholder="10000"
+                />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-zinc-400">Описание</label>
@@ -328,7 +291,6 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Tournaments list */}
         <div className="bg-[#0d1420] border border-zinc-800/60 rounded-xl overflow-hidden">
           <div className="px-4 py-3 border-b border-zinc-800">
             <h2 className="font-semibold text-sm">
@@ -356,9 +318,7 @@ export default function AdminPage() {
               <tbody>
                 {tournaments.map((t) => (
                   <React.Fragment key={t.id}>
-                    <tr
-                      className="border-b border-zinc-800/40 hover:bg-zinc-900/30 transition-colors"
-                    >
+                    <tr className="border-b border-zinc-800/40 hover:bg-zinc-900/30 transition-colors">
                       <td className="px-4 py-3 font-medium text-white">{t.name}</td>
                       <td className="px-4 py-3">
                         <span className={`font-medium ${statusColor[t.status] ?? "text-zinc-400"}`}>
@@ -385,7 +345,7 @@ export default function AdminPage() {
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
-                            onClick={() => loadParticipants(t.id)}
+                            onClick={() => toggleParticipants(t.id)}
                             className="text-xs text-zinc-400 hover:text-white transition-colors"
                           >
                             {selectedTournamentId === t.id ? "Скрыть" : "Участники"}
@@ -406,7 +366,6 @@ export default function AdminPage() {
                       </td>
                     </tr>
 
-                    {/* Participants panel */}
                     {selectedTournamentId === t.id && (
                       <tr key={`participants-${t.id}`} className="border-b border-zinc-800/40">
                         <td colSpan={7} className="px-4 py-4 bg-zinc-900/20">
@@ -429,10 +388,7 @@ export default function AdminPage() {
                               </thead>
                               <tbody>
                                 {participants.map((p, idx) => (
-                                  <tr
-                                    key={p.participant_id}
-                                    className="border-t border-zinc-800/30"
-                                  >
+                                  <tr key={p.participant_id} className="border-t border-zinc-800/30">
                                     <td className="py-2 pr-4 text-zinc-500">{idx + 1}</td>
                                     <td className="py-2 pr-4 font-medium text-white">{p.user_name}</td>
                                     <td className="py-2 pr-4 text-zinc-400">{p.user_email}</td>

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, Tournament } from "@/lib/api";
+import { Tournament } from "@/lib/api";
+import { useListTournamentsQuery, useJoinTournamentMutation } from "@/lib/apiSlice";
 
 function StatusBadge({ status }: { status: Tournament["status"] }) {
   const map = {
@@ -28,58 +29,38 @@ function fmt(n: number, digits = 0) {
 
 export default function TournamentsPage() {
   const router = useRouter();
-  const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  const [hasActive, setHasActive] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading } = useListTournamentsQuery();
+  const [joinTournament] = useJoinTournamentMutation();
   const [joiningId, setJoiningId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.replace("/auth");
-      return;
-    }
-    api.tournaments
-      .list()
-      .then((data) => {
-        setTournaments(data.tournaments);
-        setHasActive(data.has_active_tournament);
-      })
-      .catch(() => {
-        localStorage.removeItem("token");
-        router.replace("/auth");
-      })
-      .finally(() => setLoading(false));
-  }, [router]);
+  const tournaments = data?.tournaments ?? [];
+  const hasActive = data?.has_active_tournament ?? false;
 
   const handleJoin = async (id: number) => {
     setError(null);
     setJoiningId(id);
     try {
-      await api.tournaments.join(id);
-      const data = await api.tournaments.list();
-      setTournaments(data.tournaments);
-      setHasActive(data.has_active_tournament);
+      await joinTournament(id).unwrap();
       router.push(`/tournaments/${id}`);
     } catch (e: unknown) {
-      const err = e as { message?: string };
-      setError(err?.message ?? "Ошибка при вступлении");
+      const err = e as { data?: { message?: string }; message?: string };
+      setError(err?.data?.message ?? err?.message ?? "Ошибка при вступлении");
     } finally {
       setJoiningId(null);
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#080d14] flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center">
         <div className="text-zinc-500 text-sm">Загрузка...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#080d14] text-white">
+    <div className="flex-1 text-white">
       <div className="max-w-5xl mx-auto px-6 py-8 flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Турниры</h1>
@@ -104,16 +85,11 @@ export default function TournamentsPage() {
           <div className="flex flex-col gap-4">
             {tournaments.map((t) => {
               const startDate = new Date(t.start_date).toLocaleDateString("ru-RU", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
+                day: "2-digit", month: "2-digit", year: "numeric",
               });
               const endDate = new Date(t.end_date).toLocaleDateString("ru-RU", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
+                day: "2-digit", month: "2-digit", year: "numeric",
               });
-
               const canJoin = t.status === "active" && !t.joined && !hasActive;
 
               return (
@@ -171,13 +147,9 @@ export default function TournamentsPage() {
                           {joiningId === t.id ? "Вступление..." : "Вступить"}
                         </button>
                       ) : t.status === "active" && hasActive && !t.joined ? (
-                        <span className="text-xs text-zinc-500 px-4 py-2">
-                          Уже в другом турнире
-                        </span>
+                        <span className="text-xs text-zinc-500 px-4 py-2">Уже в другом турнире</span>
                       ) : t.status === "upcoming" ? (
-                        <span className="text-xs text-zinc-500 px-4 py-2">
-                          Ещё не начался
-                        </span>
+                        <span className="text-xs text-zinc-500 px-4 py-2">Ещё не начался</span>
                       ) : t.status === "finished" ? (
                         <Link
                           href={`/tournaments/${t.id}`}

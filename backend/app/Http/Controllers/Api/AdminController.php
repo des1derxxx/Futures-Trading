@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\TournamentEnded;
 use App\Http\Controllers\Controller;
 use App\Models\Tournament;
 use App\Models\TournamentParticipant;
@@ -70,7 +71,12 @@ class AdminController extends Controller
             'starting_balance' => 'nullable|numeric|min:100',
         ]);
 
+        $wasFinished = $tournament->status === 'finished';
         $tournament->update($data);
+
+        if (!$wasFinished && $tournament->status === 'finished') {
+            broadcast(new TournamentEnded($tournament));
+        }
 
         return response()->json(['tournament' => $tournament]);
     }

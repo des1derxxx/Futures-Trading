@@ -29,6 +29,7 @@ export default function AuthForm() {
         });
         localStorage.setItem("token", res.token);
         localStorage.setItem("user", JSON.stringify(res.user));
+        document.cookie = `auth_token=1; path=/; max-age=86400`;
         router.push("/");
       } else {
         const password = form.get("password") as string;
@@ -40,6 +41,7 @@ export default function AuthForm() {
         });
         localStorage.setItem("token", res.token);
         localStorage.setItem("user", JSON.stringify(res.user));
+        document.cookie = `auth_token=1; path=/; max-age=86400`;
         router.push("/");
       }
     } catch (err) {

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\TradeController;
 use App\Http\Controllers\Api\TournamentController;
@@ -31,6 +32,10 @@ Route::middleware('auth:api')->group(function () {
     Route::post('tournaments/{id}/join',                [TournamentController::class, 'join']);
     Route::get('tournaments/{id}/my-trades',                    [TournamentController::class, 'myTrades']);
     Route::get('tournaments/{id}/participants/{userId}/trades', [TournamentController::class, 'userTrades']);
+
+    // General Chat
+    Route::get('chat/messages',  [ChatController::class, 'index']);
+    Route::post('chat/messages', [ChatController::class, 'store']);
 
     // Admin
     Route::get('admin/tournaments',                     [AdminController::class, 'tournaments']);

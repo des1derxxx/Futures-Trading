@@ -39,7 +39,7 @@ class BinancePriceFeed extends Command
                     $price = (float) $data['c'];
 
                     // Cache the latest price
-                    $priceService->cachePrice($price);
+                    $priceService->cachePrice($price, strtoupper($symbol));
 
                     // Broadcast price to frontend
                     BinancePriceUpdated::dispatch($price, strtoupper($symbol));
